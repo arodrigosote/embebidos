@@ -5,7 +5,7 @@ from sensores.ldr import leer_luz_ambiental
 
 # Importaciones de actuadores
 from actuadores.bomba_agua import activar_bomba, desactivar_bomba
-from actuadores.rele import activar_rele, desactivar_rele
+from actuadores.rele import activar_rele, desactivar_rele, init_rele
 from actuadores.ventilador import activar_ventilador, desactivar_ventilador
 
 # Importación de LCD
@@ -16,36 +16,135 @@ from control.logica_control import decidir_riego, decidir_ventilacion
 
 # Importación de configuración
 from config.configuracion import CONFIG
+from config.pines_config import verificar_conflictos  # Para verificar posibles conflictos de pines
 
-# Importación de la app web
-from webapp.app import iniciar_webapp
+import time
+import RPi.GPIO as GPIO
+import threading
 
-def main():
-    # Inicialización de sensores y actuadores
-    # (Aquí puedes agregar inicializaciones si es necesario)
+# Estado de los actuadores
+estado_actuadores = {
+    'bomba': False,
+    'ventilador': False,
+    'rele': False
+}
 
-    # Ejemplo de lectura de sensores
-    humedad_suelo = leer_humedad_suelo()
-    temperatura = leer_temperatura()
-    humedad_aire = leer_humedad_aire()
-    luz_ambiental = leer_luz_ambiental()
+def inicializar_sistema():
+    """Inicializa el sistema: GPIO, sensores y actuadores."""
+    # Verificar conflictos de pines
+    duplicados, lcd_conflictos = verificar_conflictos()
+    if duplicados or lcd_conflictos:
+        print("¡ADVERTENCIA! Se detectaron posibles conflictos de pines:")
+        if duplicados:
+            print("Pines duplicados:", duplicados)
+        if lcd_conflictos:
+            print("Conflictos con LCD:", lcd_conflictos)
+    
+    # Inicializar el relé
+    init_rele()
+    
+    # Desactivar todos los actuadores al inicio
+    desactivar_bomba()
+    desactivar_ventilador()
+    desactivar_rele()
+    
+    print("Sistema inicializado correctamente.")
 
-    # Ejemplo de lógica de control
-    if decidir_riego(humedad_suelo):
+def leer_sensores():
+    """Lee todos los sensores y devuelve sus valores."""
+    try:
+        humedad_suelo = leer_humedad_suelo()
+        temperatura = leer_temperatura()
+        humedad_aire = leer_humedad_aire()
+        luz_ambiental = leer_luz_ambiental()
+        
+        datos = {
+            'humedad_suelo': humedad_suelo,
+            'temperatura': temperatura,
+            'humedad_aire': humedad_aire,
+            'luz_ambiental': luz_ambiental,
+            'timestamp': time.time()
+        }
+        
+        if CONFIG.get('debug', False):
+            print(f"Sensores: Temp={temperatura}°C, Hum_Aire={humedad_aire}%, Hum_Suelo={humedad_suelo}%, Luz={luz_ambiental}")
+        
+        return datos
+    except Exception as e:
+        print(f"Error al leer sensores: {e}")
+        return None
+
+def controlar_actuadores(datos):
+    """Controla los actuadores según los datos de los sensores."""
+    global estado_actuadores
+    
+    # Control de riego
+    if decidir_riego(datos['humedad_suelo']):
         activar_bomba()
+        estado_actuadores['bomba'] = True
     else:
         desactivar_bomba()
-
-    if decidir_ventilacion(temperatura, humedad_aire):
+        estado_actuadores['bomba'] = False
+    
+    # Control de ventilación
+    if decidir_ventilacion(datos['temperatura'], datos['humedad_aire']):
         activar_ventilador()
+        estado_actuadores['ventilador'] = True
     else:
         desactivar_ventilador()
+        estado_actuadores['ventilador'] = False
+    
+    # Relé auxiliar (ejemplo: se activa con baja luminosidad)
+    if datos['luz_ambiental'] < 20:  # Valor arbitrario para el ejemplo
+        activar_rele()
+        estado_actuadores['rele'] = True
+    else:
+        desactivar_rele()
+        estado_actuadores['rele'] = False
 
-    # Mostrar información en LCD
-    mostrar_en_lcd(humedad_suelo, temperatura, humedad_aire, luz_ambiental)
+def bucle_principal():
+    """Bucle principal del sistema."""
+    try:
+        while True:
+            # Leer datos de los sensores
+            datos = leer_sensores()
+            
+            if datos:
+                # Controlar actuadores
+                controlar_actuadores(datos)
+                
+                # Mostrar en LCD
+                mostrar_en_lcd(
+                    datos['humedad_suelo'], 
+                    datos['temperatura'], 
+                    datos['humedad_aire'], 
+                    datos['luz_ambiental']
+                )
+                
+                # Actualizar datos para la webapp
+                actualizar_datos(datos, estado_actuadores)
+            
+            # Esperar el tiempo configurado
+            time.sleep(CONFIG.get('intervalo_lectura', 5))
+    
+    except KeyboardInterrupt:
+        print("Programa terminado por el usuario.")
+    except Exception as e:
+        print(f"Error en el bucle principal: {e}")
+    finally:
+        # Limpiar GPIOs al terminar
+        GPIO.cleanup()
+        print("GPIOs liberados.")
 
-    # Iniciar aplicación web (en segundo plano o hilo aparte si es necesario)
-    iniciar_webapp()
+def main():
+    # Inicialización del sistema
+    inicializar_sistema()
+    
+    # Iniciar aplicación web
+    webapp_thread = iniciar_webapp()
+    
+    # Iniciar bucle principal
+    bucle_principal()
 
 if __name__ == "__main__":
     main()

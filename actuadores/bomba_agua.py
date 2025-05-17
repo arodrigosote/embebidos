@@ -1,25 +1,28 @@
 import RPi.GPIO as GPIO
 import time
+from config.pines_config import BOMBA_AGUA_PIN
 
 # Configuración de los pines GPIO
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(18, GPIO.OUT)
+GPIO.setup(BOMBA_AGUA_PIN, GPIO.OUT)
 
 def encender_bomba():
     """Enciende la bomba de agua."""
-    GPIO.output(18, GPIO.HIGH)
+    GPIO.output(BOMBA_AGUA_PIN, GPIO.HIGH)
 
 def apagar_bomba():
     """Apaga la bomba de agua."""
-    GPIO.output(18, GPIO.LOW)
+    GPIO.output(BOMBA_AGUA_PIN, GPIO.LOW)
 
 def activar_bomba():
     """Activa la bomba de agua."""
-    pass
+    encender_bomba()
+    print("Bomba de agua activada")
 
 def desactivar_bomba():
     """Desactiva la bomba de agua."""
-    pass
+    apagar_bomba()
+    print("Bomba de agua desactivada")
 
 if __name__ == "__main__":
     try:

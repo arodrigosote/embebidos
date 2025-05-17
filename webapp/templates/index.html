@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Control de Invernadero</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .panel-title {
+            margin-top: 0;
+            color: #3498db;
+        }
+        .sensor-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .actuador {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        .actuador.active {
+            background-color: #2ecc71;
+            color: white;
+        }
+        .actuador.inactive {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .refresh-time {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sistema de Control de Invernadero</h1>
+        
+        <div class="panel">
+            <h2 class="panel-title">Sensores</h2>
+            <div>
+                <p>Temperatura: <span id="temperatura" class="sensor-value">--</span> °C</p>
+                <p>Humedad Aire: <span id="humedad-aire" class="sensor-value">--</span> %</p>
+                <p>Humedad Suelo: <span id="humedad-suelo" class="sensor-value">--</span> %</p>
+                <p>Luz Ambiental: <span id="luz-ambiental" class="sensor-value">--</span></p>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2 class="panel-title">Actuadores</h2>
+            <div id="bomba" class="actuador inactive">Bomba de Agua: Inactiva</div>
+            <div id="ventilador" class="actuador inactive">Ventilador: Inactivo</div>
+            <div id="rele" class="actuador inactive">Relé Auxiliar: Inactivo</div>
+        </div>
+        
+        <p class="refresh-time">Última actualización: <span id="ultima-actualizacion">--</span></p>
+    </div>
+
+    <script>
+        function actualizarDatos() {
+            // Obtener datos de sensores
+            fetch('/api/sensores')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('temperatura').textContent = data.temperatura.toFixed(1);
+                    document.getElementById('humedad-aire').textContent = data.humedad_aire.toFixed(1);
+                    document.getElementById('humedad-suelo').textContent = data.humedad_suelo.toFixed(1);
+                    document.getElementById('luz-ambiental').textContent = data.luz_ambiental;
+                    
+                    const fecha = new Date(data.timestamp * 1000);
+                    document.getElementById('ultima-actualizacion').textContent = fecha.toLocaleTimeString();
+                });
+            
+            // Obtener estado de actuadores
+            fetch('/api/actuadores')
+                .then(response => response.json())
+                .then(data => {
+                    actualizarActuador('bomba', data.bomba, 'Bomba de Agua');
+                    actualizarActuador('ventilador', data.ventilador, 'Ventilador');
+                    actualizarActuador('rele', data.rele, 'Relé Auxiliar');
+                });
+        }
+        
+        function actualizarActuador(id, estado, nombre) {
+            const elemento = document.getElementById(id);
+            if (estado) {
+                elemento.className = 'actuador active';
+                elemento.textContent = `${nombre}: Activo`;
+            } else {
+                elemento.className = 'actuador inactive';
+                elemento.textContent = `${nombre}: Inactivo`;
+            }
+        }
+        
+        // Actualizar datos cada 5 segundos
+        setInterval(actualizarDatos, 5000);
+        
+        // Actualizar datos al cargar la página
+        window.onload = actualizarDatos;
+    </script>
+</body>
+</html>

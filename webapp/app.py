@@ -4,7 +4,8 @@ import datetime
 import requests
 import json
 import RPi.GPIO as GPIO
-from flask import Flask, jsonify, request
+from flask import Flask, render_template, jsonify, request
+import threading
 
 app = Flask(__name__)
 
@@ -55,8 +56,29 @@ def encender_buzzer():
 def apagar_buzzer():
     GPIO.output(BUZZER_PIN, GPIO.LOW)
 
+# Variables para almacenar los últimos datos de sensores
+datos_sensores = {
+    'humedad_suelo': 0,
+    'temperatura': 0,
+    'humedad_aire': 0,
+    'luz_ambiental': 0,
+    'timestamp': 0
+}
+
+# Estado de los actuadores
+estado_actuadores = {
+    'bomba': False,
+    'ventilador': False,
+    'rele': False
+}
+
+# Ruta para la página principal
+@app.route('/')
+def index():
+    return render_template('index.html')
+
 # Ruta para obtener el estado de los sensores
-@app.route('/sensores', methods=['GET'])
+@app.route('/api/sensores', methods=['GET'])
 def obtener_estado_sensores():
     pir_estado = leer_pir()
     dht11_estado = leer_dht11()
@@ -86,9 +108,26 @@ def ruta_apagar_buzzer():
     apagar_buzzer()
     return jsonify({'mensaje': 'Buzzer apagado'})
 
-def iniciar_webapp():
-    """Inicia la aplicación web para monitoreo remoto."""
-    pass
+@app.route('/api/actuadores')
+def get_actuadores():
+    return jsonify(estado_actuadores)
+
+def actualizar_datos(datos, estado):
+    global datos_sensores, estado_actuadores
+    datos_sensores = datos
+    estado_actuadores = estado
+
+def iniciar_webapp(host='0.0.0.0', port=5000, debug=False):
+    """Inicia la aplicación web en un hilo separado."""
+    def run_app():
+        app.run(host=host, port=port, debug=debug)
+    
+    # Iniciar la app en un hilo separado para no bloquear el programa principal
+    webapp_thread = threading.Thread(target=run_app)
+    webapp_thread.daemon = True  # El hilo se detendrá cuando el programa principal termine
+    webapp_thread.start()
+    print(f"Aplicación web iniciada en http://{host}:{port}")
+    return webapp_thread
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

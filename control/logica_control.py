@@ -1,3 +1,5 @@
+from config.configuracion import CONFIG
+
 def controlar_riego(humedad_suelo, umbral_humedad):
     """Controla el sistema de riego según la humedad del suelo."""
     if humedad_suelo < umbral_humedad:
@@ -14,8 +16,11 @@ def controlar_ventilacion(temperatura, humedad_aire, umbral_temperatura, umbral_
 
 def decidir_riego(humedad_suelo):
     """Decide si se debe activar el riego según la humedad del suelo."""
-    pass
+    umbral_humedad = CONFIG.get('umbral_humedad_suelo', 30)
+    return humedad_suelo < umbral_humedad
 
 def decidir_ventilacion(temperatura, humedad_aire):
     """Decide si se debe activar la ventilación según temperatura y humedad del aire."""
-    pass
+    umbral_temperatura = CONFIG.get('umbral_temperatura', 28)
+    umbral_humedad = CONFIG.get('umbral_humedad_aire', 70)
+    return temperatura > umbral_temperatura or humedad_aire > umbral_humedad
